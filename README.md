@@ -52,16 +52,22 @@ damagedone
 ```
 store_distance
 ```
-Config Options: Refresh Time
+Config Option: Refresh Time
 
 ## More Hp
 ```
 store_morehp
 ```
-Config Options: Amount of Hp to add
+Config Option: Amount of Hp to add
 
 ## More Speed
 ```
 store_morespeed
 ```
-Config Options: Amount of Speed to add
+Config Option: Amount of Speed to add
+
+## Welcome and Leave Messages
+```
+store_chat_messages
+```
+Config Option: Tag infront of the Messages
