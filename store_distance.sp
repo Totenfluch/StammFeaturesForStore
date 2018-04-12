@@ -1,108 +1,109 @@
 #include <sourcemod>
 #include <store>
 #include <sdktools>
+#include <autoexecconfig>
 
 #pragma semicolon 1
 
-new Handle:g_hUnit;
 
-new bool:g_bVipPlayers[MAXPLAYERS + 1][3];
+bool g_bVipPlayers[MAXPLAYERS + 1][3];
 
+ConVar g_hTime;
+float g_fTime;
 
-
-public Plugin:myinfo = 
-{
+public Plugin myinfo =  {
 	name = "Store Player Distance", 
 	author = "Totenfluch", 
-	version = "1.0.0", 
+	version = "1.1", 
 	description = "See the nearest player & distance when bought", 
-	url = "http://ggc-base.de"
+	url = "https://totenfluch.de"
 };
 
-public OnPluginStart()
-{
+#pragma newdecls required
+
+public void OnPluginStart() {
 	Store_RegisterHandler("radar1", "", radar1_OnMapStart, radar1_Reset, radar1_Config, radar1_Equip, radar1_Remove, true);
 	Store_RegisterHandler("radar2", "", radar2_OnMapStart, radar2_Reset, radar2_Config, radar2_Equip, radar2_Remove, true);
-	HookEvent("player_spawn", eventPlayerSpawn);
+	
+	AutoExecConfig_SetFile("store_distance");
+	AutoExecConfig_SetCreateFile(true);
+	
+	g_hTime = AutoExecConfig_CreateConVar("store_distance_time", "3.0", "Time between HUD refreshes");
+	
+	AutoExecConfig_CleanFile();
+	AutoExecConfig_ExecuteFile();
+	
+	
+	HookEvent("player_spawn", onPlayerSpawn);
 }
 
-public OnMapStart()
-{
-	CreateTimer(0.2, checkPlayers, _, TIMER_REPEAT);
-}
-
-public radar1_OnMapStart() {  }
-public radar1_Reset() {  }
-public radar1_Config(&Handle:kv, itemid)
-{
-	Store_SetDataIndex(itemid, 0);
-	return true;
-}
-public radar1_Equip(client, id)
-{
-	return -1;
-}
-public radar1_Remove(client, id) {  }
-
-public radar2_OnMapStart() {  }
-public radar2_Reset() {  }
-public radar2_Config(&Handle:kv, itemid)
-{
-	Store_SetDataIndex(itemid, 0);
-	return true;
-}
-public radar2_Equip(client, id)
-{
-	return -1;
-}
-public radar2_Remove(client, id) {  }
-
-public OnConfigsExecuted()
-{
-	if (FindConVar("sv_hudhint_sound") != INVALID_HANDLE)
-	{
+public void OnConfigsExecuted() {
+	g_fTime = GetConVarFloat(g_hTime);
+	
+	CreateTimer(g_fTime, checkPlayers, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+	
+	if (FindConVar("sv_hudhint_sound") != INVALID_HANDLE) {
 		SetConVarInt(FindConVar("sv_hudhint_sound"), 0);
 	}
 }
 
+public void radar1_OnMapStart() {  }
+
+public void radar1_Reset() {  }
+
+public bool radar1_Config(Handle kv, int itemid) {
+	Store_SetDataIndex(itemid, 0);
+	return true;
+}
+
+public int radar1_Equip(int client, int id) {
+	return -1;
+}
+
+public void radar1_Remove(int client, int id) {  }
+
+public void radar2_OnMapStart() {  }
+
+public void radar2_Reset() {  }
+
+public bool radar2_Config(Handle kv, int itemid) {
+	Store_SetDataIndex(itemid, 0);
+	return true;
+}
+public int radar2_Equip(int client, int id) {
+	return -1;
+}
+
+public void radar2_Remove(int client, int id) {  }
 
 
 
-// A player spawned
-public Action:eventPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
-{
-	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+public Action onPlayerSpawn(Handle event, const char[] name, bool dontBroadcast) {
+	int client = GetClientOfUserId(GetEventInt(event, "userid"));
 	
-	
-	// Reset
 	g_bVipPlayers[client][0] = false;
 	g_bVipPlayers[client][1] = false;
 	g_bVipPlayers[client][2] = false;
 	
-	if (IsValidClient(client))
-	{
-		new m_iEquipped = Store_GetEquippedItem(client, "radar1");
-		new m_iEquipped2 = Store_GetEquippedItem(client, "radar2");
+	if (isValidClient(client)) {
+		int m_iEquipped = Store_GetEquippedItem(client, "radar1");
+		int m_iEquipped2 = Store_GetEquippedItem(client, "radar2");
 		
-		if (m_iEquipped >= 0)
-		{
+		if (m_iEquipped >= 0) {
 			g_bVipPlayers[client][2] = true;
 		}
 		
-		if (m_iEquipped2 >= 0)
-		{
+		if (m_iEquipped2 >= 0) {
 			g_bVipPlayers[client][1] = true;
 		}
 		
-		if (m_iEquipped2 >= 0)
-		{
+		if (m_iEquipped2 >= 0) {
 			g_bVipPlayers[client][0] = true;
 		}
 	}
 }
 
-public OnClientDisconnect(client)
-{
+public void OnClientDisconnect(int client) {
 	g_bVipPlayers[client][0] = false;
 	g_bVipPlayers[client][1] = false;
 	g_bVipPlayers[client][2] = false;
@@ -110,39 +111,28 @@ public OnClientDisconnect(client)
 
 
 // Check for nearest player
-public Action:checkPlayers(Handle:timer, any:data)
-{
-	decl String:unitString[12];
-	decl String:unitStringOne[12];
+public Action checkPlayers(Handle timer, any data) {
+	char unitString[12];
+	char unitStringOne[12];
 	
-	new Float:clientOrigin[3];
-	new Float:searchOrigin[3];
-	new Float:near;
-	new Float:distance;
+	float clientOrigin[3];
+	float searchOrigin[3];
+	float near;
+	float distance;
 	
-	new nearest;
-	
-	
+	int nearest;
 	
 	Format(unitString, sizeof(unitString), "meters");
 	Format(unitStringOne, sizeof(unitStringOne), "meter");
 	
 	
-	
-	
-	for (new client = 1; client <= MaxClients; client++)
-	{
-		if ((g_bVipPlayers[client][0] || g_bVipPlayers[client][1] || g_bVipPlayers[client][2]) && IsPlayerAlive(client))
-		{
-			if (!IsValidClient(client))
-			{
+	for (int client = 1; client <= MaxClients; client++) {
+		if ((g_bVipPlayers[client][0] || g_bVipPlayers[client][1] || g_bVipPlayers[client][2]) && IsPlayerAlive(client)) {
+			if (!isValidClient(client)) {
 				g_bVipPlayers[client][0] = false;
 				g_bVipPlayers[client][1] = false;
 				g_bVipPlayers[client][2] = false;
-			}
-			
-			else
-			{
+			} else {
 				nearest = 0;
 				near = 0.0;
 				
@@ -150,24 +140,20 @@ public Action:checkPlayers(Handle:timer, any:data)
 				GetClientAbsOrigin(client, clientOrigin);
 				
 				// Next client loop
-				for (new search = 1; search <= MaxClients; search++)
-				{
-					if (IsClientInGame(search) && IsPlayerAlive(search) && search != client && (GetClientTeam(client) != GetClientTeam(search)))
-					{
+				for (int search = 1; search <= MaxClients; search++) {
+					if (IsClientInGame(search) && IsPlayerAlive(search) && search != client && (GetClientTeam(client) != GetClientTeam(search))) {
 						// Get distance to first client
 						GetClientAbsOrigin(search, searchOrigin);
 						
 						distance = GetVectorDistance(clientOrigin, searchOrigin);
 						
 						// Is he more near to the player as the player before?
-						if (near == 0.0)
-						{
+						if (near == 0.0) {
 							near = distance;
 							nearest = search;
 						}
 						
-						if (distance < near)
-						{
+						if (distance < near) {
 							near = distance;
 							nearest = search;
 						}
@@ -175,20 +161,18 @@ public Action:checkPlayers(Handle:timer, any:data)
 				}
 				
 				// Found a player?
-				if (nearest != 0)
-				{
-					new Float:dist;
-					new Float:vecPoints[3];
-					new Float:vecAngles[3];
-					new Float:clientAngles[3];
+				if (nearest != 0) {
+					float dist;
+					float vecPoints[3];
+					float vecAngles[3];
+					float clientAngles[3];
 					
-					decl String:directionString[64];
-					new String:textToPrint[64];
+					char directionString[64];
+					char textToPrint[64];
 					
 					
 					// Client get Direction?
-					if (g_bVipPlayers[client][2])
-					{
+					if (g_bVipPlayers[client][2]) {
 						// Get the origin of the nearest player
 						GetClientAbsOrigin(nearest, searchOrigin);
 						
@@ -200,79 +184,44 @@ public Action:checkPlayers(Handle:timer, any:data)
 						GetVectorAngles(vecPoints, vecAngles);
 						
 						// Differenz
-						new Float:diff = clientAngles[1] - vecAngles[1];
+						float diff = clientAngles[1] - vecAngles[1];
 						
 						// Correct it
-						if (diff < -180)
-						{
+						if (diff < -180) {
 							diff = 360 + diff;
 						}
 						
-						if (diff > 180)
-						{
+						if (diff > 180) {
 							diff = 360 - diff;
 						}
 						
 						
 						// Now geht the direction
 						
-						// Up
-						if (diff >= -22.5 && diff < 22.5)
-						{
+						if (diff >= -22.5 && diff < 22.5) {
 							Format(directionString, sizeof(directionString), "\xe2\x86\x91");
-						}
-						
-						// right up
-						else if (diff >= 22.5 && diff < 67.5)
-						{
+						} else if (diff >= 22.5 && diff < 67.5) {
 							Format(directionString, sizeof(directionString), "\xe2\x86\x97");
-						}
-						
-						// right
-						else if (diff >= 67.5 && diff < 112.5)
-						{
+						} else if (diff >= 67.5 && diff < 112.5) {
 							Format(directionString, sizeof(directionString), "\xe2\x86\x92");
-						}
-						
-						// right down
-						else if (diff >= 112.5 && diff < 157.5)
-						{
+						} else if (diff >= 112.5 && diff < 157.5) {
 							Format(directionString, sizeof(directionString), "\xe2\x86\x98");
-						}
-						
-						// down
-						else if (diff >= 157.5 || diff < -157.5)
-						{
+						} else if (diff >= 157.5 || diff < -157.5) {
 							Format(directionString, sizeof(directionString), "\xe2\x86\x93");
-						}
-						
-						// down left
-						else if (diff >= -157.5 && diff < -112.5)
-						{
+						} else if (diff >= -157.5 && diff < -112.5) {
 							Format(directionString, sizeof(directionString), "\xe2\x86\x99");
-						}
-						
-						// left
-						else if (diff >= -112.5 && diff < -67.5)
-						{
+						} else if (diff >= -112.5 && diff < -67.5) {
 							Format(directionString, sizeof(directionString), "\xe2\x86\x90");
-						}
-						
-						// left up
-						else if (diff >= -67.5 && diff < -22.5)
-						{
+						} else if (diff >= -67.5 && diff < -22.5) {
 							Format(directionString, sizeof(directionString), "\xe2\x86\x96");
 						}
 						
 						
 						
 						// Add to text
-						if (g_bVipPlayers[client][1] || g_bVipPlayers[client][0])
-						{
+						if (g_bVipPlayers[client][1] || g_bVipPlayers[client][0]) {
 							Format(textToPrint, sizeof(textToPrint), "%s\n", directionString);
-						}
-						else
-						{
+						} else {
 							Format(textToPrint, sizeof(textToPrint), directionString);
 						}
 					}
@@ -280,27 +229,22 @@ public Action:checkPlayers(Handle:timer, any:data)
 					
 					
 					// Client get Distance?
-					if (g_bVipPlayers[client][1])
-					{
+					if (g_bVipPlayers[client][1]) {
 						// Distance to meters
 						dist = near * 0.01905;
 						
 						
 						// Add to text
-						if (g_bVipPlayers[client][0])
-						{
+						if (g_bVipPlayers[client][0]) {
 							Format(textToPrint, sizeof(textToPrint), "%s(%i %s)\n", textToPrint, RoundFloat(dist), (RoundFloat(dist) == 1 ? unitStringOne : unitString));
-						}
-						else
-						{
+						} else {
 							Format(textToPrint, sizeof(textToPrint), "%s(%i %s)", textToPrint, RoundFloat(dist), (RoundFloat(dist) == 1 ? unitStringOne : unitString));
 						}
 					}
 					
 					
 					// Add name
-					if (g_bVipPlayers[client][0])
-					{
+					if (g_bVipPlayers[client][0]) {
 						Format(textToPrint, sizeof(textToPrint), "%s%N", textToPrint, nearest);
 					}
 					
@@ -314,10 +258,6 @@ public Action:checkPlayers(Handle:timer, any:data)
 	return Plugin_Continue;
 }
 
-public IsValidClient(client)
-{
-	if (!(1 <= client <= MaxClients) || !IsClientInGame(client))
-		return false;
-	
-	return true;
-} 
+stock bool isValidClient(int client) {
+	return (1 <= client <= MaxClients && IsClientInGame(client));
+}

@@ -4,52 +4,49 @@
 
 #pragma semicolon 1
 
-public Plugin:myinfo = 
-{
+public Plugin myinfo =  {
 	name = "Store VIP Tag", 
 	author = "Totenfluch", 
-	version = "1.0.0", 
-	description = "*VIP* Tag is bought", 
-	url = "http://ggc-base.de"
+	version = "1.1", 
+	description = "*VIP* Tag is bought + Admin Tags", 
+	url = "https://totenfluch.de"
 };
 
-public OnPluginStart()
-{
+public void OnPluginStart() {
 	Store_RegisterHandler("viptag", "", viptag_OnMapStart, viptag_Reset, viptag_Config, viptag_Equip, viptag_Remove, true);
 	HookEvent("player_spawn", eventPlayerSpawn);
 }
 
 
-public viptag_OnMapStart() {  }
-public viptag_Reset() {  }
-public viptag_Config(&Handle:kv, itemid)
-{
+public void viptag_OnMapStart() {  }
+
+public void viptag_Reset() {  }
+
+public bool viptag_Config(Handle kv, int itemid) {
 	Store_SetDataIndex(itemid, 0);
 	return true;
 }
-public viptag_Equip(client, id)
-{
+
+public int viptag_Equip(int client, int id) {
 	NameCheck(client);
 	return -1;
 }
-public viptag_Remove(client, id) {
+
+public void viptag_Remove(int client, int id) {
 	NameCheck(client);
 }
 
-public Action eventPlayerSpawn(Handle event, const char[] name, bool dontBroadcast)
-{
-	new userid = GetEventInt(event, "userid");
-	new client = GetClientOfUserId(userid);
+public Action eventPlayerSpawn(Handle event, const char[] name, bool dontBroadcast) {
+	int userid = GetEventInt(event, "userid");
+	int client = GetClientOfUserId(userid);
 	
-	if (IsValidClient(client))
-	{
+	if (isValidClient(client)) {
 		NameCheck(client);
 	}
 }
 
-public NameCheck(client)
-{
-	new m_iEquipped = Store_GetEquippedItem(client, "viptag");
+public void NameCheck(int client) {
+	int m_iEquipped = Store_GetEquippedItem(client, "viptag");
 	if (m_iEquipped < 0) {
 		CS_SetClientClanTag(client, "");
 		return;
@@ -58,15 +55,13 @@ public NameCheck(client)
 	CS_SetClientClanTag(client, GetClientClientAdminStatus(client));
 }
 
-
-
-String:GetClientClientAdminStatus(any:client) {
+char[] GetClientClientAdminStatus(int client) {
 	bool mod = CheckCommandAccess(client, "sm_ccommand", ADMFLAG_CHAT, true);
 	bool trial = CheckCommandAccess(client, "sm_ccommand", ADMFLAG_UNBAN, true);
 	bool admin = CheckCommandAccess(client, "sm_ccommand", ADMFLAG_CUSTOM4, true);
 	bool senior = CheckCommandAccess(client, "sm_ccommand", ADMFLAG_RCON, true);
 	bool root = CheckCommandAccess(client, "sm_ccommand", ADMFLAG_ROOT, true);
-	decl String:stuff[20];
+	char stuff[20];
 	
 	if (root) {
 		Format(stuff, sizeof(stuff), "Head Admin");
@@ -85,12 +80,6 @@ String:GetClientClientAdminStatus(any:client) {
 	return stuff;
 }
 
-public IsValidClient(client)
-{
-	if (!(1 <= client <= MaxClients) || !IsClientInGame(client))
-		return false;
-	
-	return true;
+stock bool isValidClient(int client) {
+	return (1 <= client <= MaxClients && IsClientInGame(client));
 }
-
-
